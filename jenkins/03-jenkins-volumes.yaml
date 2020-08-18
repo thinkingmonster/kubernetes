@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  namespace: dqjenkins-ns
+  name: dqjenkins-volume
+  labels:
+    name: dqjenkins-volume
+    project: dq
+    env: prod
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: dqjenkins-volume
+  nfs:
+    path: /nfsshare/dq-jenkins
+    server: nfs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  namespace: dqjenkins-ns
+  name: dqjenkins-volume
+  labels:
+    name: dqjenkins-volumeclaim
+    project: dq
+    env: prod
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: dqjenkins-volume
+  selector:
+    matchLabels:
+      name: dqjenkins-volume

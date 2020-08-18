@@ -1,0 +1,10 @@
+#!/bin/bash
+SSH_USER="akash"
+GUEST_ADDITION_VERSION=6.1.6
+containerd_version=1.2.13
+docker_version=19.03.8
+docker_cli_version=19.03.8
+apiserver_advertise_address=192.168.7.11
+pod_network_cidr=10.1.0.0
+HELM_VERSION=3.2.1
+nfs_volume_name=nfsshare

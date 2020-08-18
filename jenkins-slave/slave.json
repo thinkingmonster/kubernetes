@@ -1,0 +1,16 @@
+{
+  "builders": [
+    {
+      "type": "docker",
+      "image": "jenkinsci/jnlp-slave",
+      "commit": true
+    }
+  ],
+
+  "provisioners": [
+    {
+      "type": "shell",
+      "script": "install_package.sh"
+    }
+  ]
+}

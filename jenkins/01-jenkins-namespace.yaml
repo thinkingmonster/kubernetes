@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dqjenkins-ns
+  labels:
+    name: dqjenkins-ns
+    project: dq
+    env: prod

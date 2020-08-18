@@ -1,0 +1,199 @@
+# Sonar data PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dqsonarqube-data-pv
+  labels:
+    name: dqsonarqube-data-pv
+    project: dq
+    env: prod
+spec:
+  capacity:
+    storage: 8Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: dqsonarqube-data-pv
+  nfs:
+    path: /nfsshare/dqsonarqube/sonarqube-data
+    server: nfs
+---
+# Sonar data  PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dqsonarqube-data-pvc
+  labels:
+    name: dqsonarqube-data-pvc
+    project: dq
+    env: prod
+  namespace: dqsonarqube-ns
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # storage: 80Gi
+      storage: 8Gi
+  storageClassName: dqsonarqube-data-pv
+  selector:
+    matchLabels:
+      name: dqsonarqube-data-pv
+---
+# Sonar extensions PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dqsonarqube-extensions-pv
+  labels:
+    name: dqsonarqube-extensions-pv
+    project: dq
+    env: prod
+spec:
+  capacity:
+    storage: 2Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: dqsonarqube-extensions-pv
+  nfs:
+    path: /nfsshare/dqsonarqube/sonarqube-extensions
+    server: nfs
+
+---
+# Sonar extensions  PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dqsonarqube-extensions-pvc
+  labels:
+    name: dqsonarqube-extensions-pvc
+    project: dq
+    env: prod
+  namespace: dqsonarqube-ns
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # storage: 80Gi
+      storage: 2Gi
+  storageClassName: dqsonarqube-extensions-pv
+  selector:
+    matchLabels:
+      name: dqsonarqube-extensions-pv
+
+---
+#sonarqube deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dqsonarqube-deploy
+  namespace: dqsonarqube-ns
+  labels:
+    name: dqsonarqube-deploy
+    project: dq
+    env: prod
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: dqsonarqube-pod
+      project: dq
+      env: prod
+  template:
+    metadata:
+      labels:
+        name: dqsonarqube-pod
+        project: dq
+        env: prod
+    spec:
+      initContainers:
+        - name: set-vm-max-map-count
+          image: busybox
+          imagePullPolicy: IfNotPresent
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+      containers:
+        - name: dqsonarqube
+          image: sonarqube:8.3.1-community
+          args:
+            - -Dsonar.web.context=/sonar
+          resources:
+            limits:
+              memory: "1400Mi"
+              cpu: "0.5"
+          ports:
+            - containerPort: 9000
+              protocol: TCP
+          env:
+            - name: SONARQUBE_JDBC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dqpostgres-auth
+                  key: password
+            - name: SONARQUBE_JDBC_USERNAME
+              value: postgresadmin
+            - name: SONARQUBE_JDBC_URL
+              value: "jdbc:postgresql://dqpostgres-svc.dqsonarqube-ns.svc.cluster.local/sonarqubedb"
+          volumeMounts:
+            - name: sonarqube-data
+              mountPath: /opt/sonarqube/data/
+            - name: sonarqube-extensions
+              mountPath: /opt/sonarqube/extensions/
+      volumes:
+        - name: sonarqube-data
+          persistentVolumeClaim:
+            claimName: dqsonarqube-data-pvc
+        - name: sonarqube-extensions
+          persistentVolumeClaim:
+            claimName: dqsonarqube-extensions-pvc
+---
+#sonarqube service
+apiVersion: v1
+kind: Service
+metadata:
+  name: dqsonarqube-svc
+  namespace: dqsonarqube-ns
+  labels:
+    name: dqsonarqube-svc
+    project: dq
+    env: prod
+spec:
+  ports:
+    - port: 9000
+      protocol: TCP
+      targetPort: 9000
+      nodePort: 30090
+  selector:
+    name: dqsonarqube-pod
+  type: NodePort
+---
+# Sonar ingress
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  namespace: dqsonarqube-ns
+  name: dqsonarqube-ingress
+  labels:
+    name: dqsonarqube-ingress
+    project: dq
+    env: prod
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
+    nginx.ingress.kubernetes.io/session-cookie-name: "route"
+    nginx.ingress.kubernetes.io/session-cookie-hash: "sha1"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /sonar
+            backend:
+              serviceName: dqsonarqube-svc
+              servicePort: 9000

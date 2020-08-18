@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    name: dqjenkins-deploy
+    project: dq
+    env: prod
+  name: dqjenkins-deploy
+  namespace: dqjenkins-ns
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: dqjenkins-pod
+      project: dq
+      env: prod
+      app: jenkins-master
+  template:
+    metadata:
+      labels:
+        name: dqjenkins-pod
+        project: dq
+        env: prod
+        app: jenkins-master
+    spec:
+      serviceAccountName: dqjenkins-sa
+      containers:
+        - image: jenkins/jenkins:2.235.3-lts-centos7
+          name: jenkins
+          resources:
+            requests:
+              memory: "1024Mi"
+              cpu: "0.3"
+            limits:
+              memory: "2048Mi"
+              cpu: "1.0"
+          ports:
+            - name: http-port
+              containerPort: 8080
+            - name: jnlp-port
+              containerPort: 50000
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+            - name: docker-sock-volume
+              mountPath: /var/run/docker.sock
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          env:
+            - name: JENKINS_OPTS
+              value: --prefix=/jenkins
+      volumes:
+        - name: jenkins-home
+          persistentVolumeClaim:
+            claimName: "dqjenkins-volume"
+            readOnly: false
+        - name: docker-sock-volume
+          hostPath:
+            path: /var/run/docker.sock
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dqjenkins-svc
+  namespace: dqjenkins-ns
+  labels:
+    name: dqjenkins-svc
+    project: dq
+    env: prod
+spec:
+  selector:
+    app: jenkins-master
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+    - port: 50000
+      targetPort: 50000
+      protocol: TCP
+      name: slave-access
+  type: ClusterIP

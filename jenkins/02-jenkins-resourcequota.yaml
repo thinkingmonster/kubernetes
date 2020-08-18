@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  namespace: dqjenkins-ns
+  name: dqjenkins-quota
+  labels:
+    name: dqjenkins-quota
+    project: dq
+    env: prod
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "2"
+    limits.memory: 2Gi

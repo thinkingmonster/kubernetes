@@ -1,0 +1,162 @@
+# Sonarqube namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dqsonarqube-ns
+  labels:
+    name: dqsonarqube-ns
+    project: dq
+    env: prod
+---
+# postgres configmap
+apiVersion: v1
+data:
+  POSTGRES_DB: sonarqubedb
+  POSTGRES_USER: postgresadmin
+kind: ConfigMap
+metadata:
+  namespace: dqsonarqube-ns
+  name: dqpostgres-configmap
+  labels:
+    name: dqpostgres-configmap
+    project: dq
+    env: prod
+---
+# postgres secret
+apiVersion: v1
+data:
+  password: Z2FtYTEyMzQ=
+kind: Secret
+metadata:
+  namespace: dqsonarqube-ns
+  name: dqpostgres-auth
+  labels:
+    name: dqpostgres-auth
+    project: dq
+    env: prod
+---
+# postgres PV
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: dqpostgresql-data-pv
+  labels:
+    name: dqpostgresql-data-pv
+    project: dq
+    env: prod
+spec:
+  capacity:
+    storage: 8Gi
+    # storage: 8Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Recycle
+  storageClassName: dqpostgresql-data-dir
+  nfs:
+    path: /nfsshare/dqpostgresql-data-dir
+    server: nfs
+---
+# Postgres PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dqpostgresql-data-pvc
+  labels:
+    name: dqpostgresql-data-pvc
+    project: dq
+    env: prod
+  namespace: dqsonarqube-ns
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # storage: 80Gi
+      storage: 8Gi
+  storageClassName: dqpostgresql-data-dir
+  selector:
+    matchLabels:
+      name: dqpostgresql-data-pv
+---
+# Postgres deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: dqsonarqube-ns
+  labels:
+    app: dqpostgres-deploy
+    name: dqpostgres-deploy
+    project: dq
+    env: prod
+  name: dqpostgres-deploy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: dqpostgres-pod
+      project: dq
+      env: prod
+  template:
+    metadata:
+      labels:
+        name: dqpostgres-pod
+        project: dq
+        env: prod
+    spec:
+      containers:
+        - image: postgres:10.6
+          name: postgres
+          resources:
+            requests:
+              cpu: "0.5"
+              memory: "512Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"
+          volumeMounts:
+            - name: postgresdir
+              mountPath: /var/lib/postgresql/data
+              readOnly: false
+          envFrom:
+            - configMapRef:
+                name: dqpostgres-configmap
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: password
+                  name: dqpostgres-auth
+          ports:
+            - containerPort: 5432
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: postgresdir
+          persistentVolumeClaim:
+            claimName: dqpostgresql-data-pvc
+---
+# Postgres Service
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: dqsonarqube-ns
+  labels:
+    name: dqpostgres-svc
+    project: dq
+    env: prod
+    app: postgres
+  name: dqpostgres-svc
+spec:
+  ports:
+    - name: 5432-5432
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+  selector:
+    name: dqpostgres-pod
+    project: dq
+    env: prod
+  type: ClusterIP

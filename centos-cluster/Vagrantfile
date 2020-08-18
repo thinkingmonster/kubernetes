@@ -1,0 +1,109 @@
+# -*- mode: ruby -*-
+# vi:set ft=ruby sw=2 ts=2 sts=2:
+
+# Define the number of master and worker nodes
+# If this number is changed, remember to update setup-hosts.sh script with the new hosts IP details in /etc/hosts of each VM.
+NUM_MASTER_NODE = 1
+NUM_WORKER_NODE = 2
+prefix='dq'
+
+IP_NW = "192.168.7."
+MASTER_IP_START = 10
+NODE_IP_START = 20
+PROXY_IP_START = 30
+NFS_IP_START = 40
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/centos-7.7"
+  config.vm.box_check_update = false
+  # Uncomment next line if you want to mount your  workspace on  each machine. Replace ""/Users/akthakur/Documents/Code/kube"" with path from your own machine.
+  # config.vm.synced_folder "/Users/akthakur/Documents/Code/kube", "/home/vagrant/workspace"
+
+  
+
+
+  # Provision Master Server
+  (1..NUM_MASTER_NODE).each do |i|
+      config.vm.define "master-#{i}" do |node|
+        node.vm.provider "virtualbox" do |vb|
+            vb.name = "#{prefix}-kubernetes-ha-master-#{i}"
+            vb.memory = 2048
+            vb.cpus = 2
+        end
+        node.vm.hostname = "master-#{i}"
+        node.vm.network :private_network, ip: IP_NW + "#{MASTER_IP_START + i}"
+        node.vm.network "forwarded_port", guest: 22, host: "#{2710 + i}"
+        node.vm.provision "swap-off", type: "shell", :path => "centos/01-swapoff.sh"
+        node.vm.provision "update-dns", type: "shell", :path => "centos/02-update-dns.sh"
+        node.vm.provision "setup-hosts", :type => "shell", :path => "centos/03-setup-hosts.sh" do |s|
+            s.args = ["eth1"]
+        end
+        node.vm.provision "install-common", type: "shell", :path => "centos/05-install-common.sh"
+        node.vm.provision "bootstrap-cluster", type: "shell", :path => "centos/06-bootstrap-cluster.sh"
+        node.vm.provision "config-user", type: "shell", :path => "centos/07-configure-users-master.sh"
+        node.vm.provision "node-token", type: "shell", :path => "centos/08-generate-node-bootstrap.sh"
+        node.vm.provision "weavenet", type: "shell", :path => "centos/09-install-weavenet.sh"
+        # node.vm.provision "k8-plugins", type: "shell", :path => "centos/12-kubernetes-plugins.sh"
+
+      end
+  end
+
+  # Provision Proxy server(We can have Nginx installed on this)
+  config.vm.define "proxy" do |node|
+    node.vm.provider "virtualbox" do |vb|
+        vb.name = "#{prefix}-proxy"
+        vb.memory = 512
+        vb.cpus = 1
+    end
+    node.vm.hostname = "proxy"
+    node.vm.network :private_network, ip: IP_NW + "#{PROXY_IP_START}"
+    node.vm.network "forwarded_port", guest: 22, host: 2730
+    node.vm.provision "setup-dns", type: "shell", :path => "centos/02-update-dns.sh"
+    node.vm.provision "setup-hosts", :type => "shell", :path => "centos/03-setup-hosts.sh" do |s|
+        s.args = ["eth1"]
+      end
+    # node.vm.provision "install-docker-tool", type: "shell", :path => "centos/04-install-guest-additions.sh"
+    node.vm.provision "config-user", type: "shell", :path => "centos/07a-configure-users-workers.sh"
+    # node.vm.synced_folder "/Users/akthakur/Documents/Code/kube", "/home/vagrant/workspace"
+  end
+
+  # Provision Worker Nodes
+  (1..NUM_WORKER_NODE).each do |i|
+    config.vm.define "worker-#{i}" do |node|
+        node.vm.provider "virtualbox" do |vb|
+            vb.name = "#{prefix}-kubernetes-ha-worker-#{i}"
+            vb.memory = 3048
+            vb.cpus = 1
+        end
+        node.vm.hostname = "worker-#{i}"
+        node.vm.network :private_network, ip: IP_NW + "#{NODE_IP_START + i}"
+		    node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
+        node.vm.provision "swap-off", type: "shell", :path => "centos/01-swapoff.sh"
+        node.vm.provision "update-dns", type: "shell", :path => "centos/02-update-dns.sh"
+        node.vm.provision "setup-hosts", :type => "shell", :path => "centos/03-setup-hosts.sh" do |s|
+            s.args = ["eth1"]
+          end
+        node.vm.provision "install-common", type: "shell", :path => "centos/05-install-common.sh"
+        node.vm.provision "config-user", type: "shell", :path => "centos/07a-configure-users-workers.sh"
+        node.vm.provision "add-node", type: "shell", :path => "centos/10-add-node-to-cluster.sh"
+    end
+  end
+
+  # Provision NFS server 
+  config.vm.define "nfs-server" do |node|
+    node.vm.provider "virtualbox" do |n|
+        n.name = "#{prefix}-nfs-server"
+        n.memory = 1024
+        n.cpus = 1
+      end
+      node.vm.hostname = "nfs"
+      node.vm.network :private_network, ip: IP_NW + "#{NFS_IP_START}"
+      node.vm.network "forwarded_port", guest: 22, host: 2740
+      node.vm.provision "setup-hosts", :type => "shell", :path => "centos/03-setup-hosts.sh" do |s|
+      s.args = ["eth1"]
+    end
+    node.vm.provision "config-user", type: "shell", :path => "centos/07a-configure-users-workers.sh"
+    node.vm.provision "nfs-config", type: "shell",path: "centos/11-nfs-server.sh"
+  end
+end
+

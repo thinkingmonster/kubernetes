@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dqmongo-ns
+  labels:
+    name: dqmongo-ns
+    project: dq
+    env: prod
