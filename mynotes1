@@ -1,0 +1,26 @@
+# Create eks cluster
+eksctl create cluster --config-file resources_eks_course/eksctl-create-cluster.yaml
+or
+eksctl create cluster --name=mycluster --nodegroup-name ng-default --node-type t2.medium --nodes 3
+
+# Create node group
+eksctl  create nodegroup --config-file resources_eks_course/eksctl-create-ng.yaml
+
+#Get node groups
+eksctl get nodegroup --cluster=ekstheek lag raha muje
+ctl-test
+
+# Delete a cluster
+eksctl delete cluster mycluster
+
+#  max pod details on each node type
+https://github.com/awslabs/amazon-eks-ami/blob/master/files/eni-max-pods.txt
+
+
+helm upgrade --install metrics-server metrics-server/metrics-server
+helm install --set 'args={--kubelet-insecure-tls}' --namespace kube-system metrics-server metrics-server/metrics-server
+
+
+# Install AWS-ingress-controller
+
+https://aws.amazon.com/blogs/opensource/kubernetes-ingress-aws-alb-ingress-controller/

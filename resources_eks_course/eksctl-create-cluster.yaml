@@ -1,0 +1,17 @@
+--- 
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: sat-learn2
+  region: us-east-1
+
+nodeGroups:
+  - name: ng-default
+    instanceType: t3.medium
+    desiredCapacity: 2
+    iam:
+      withAddonPolicies:
+        autoScaler: true
+# iam:
+#   withOIDC: true
