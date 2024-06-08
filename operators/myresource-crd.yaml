@@ -24,3 +24,43 @@ spec:
     kind: MyResource
     shortNames:
     - mr
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: my-operator
+  namespace: default
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: default
+  name: my-operator
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+- apiGroups: ["example.com"]
+  resources: ["myresources"]
+  verbs: ["get", "list", "watch", "create", "delete", "patch", "update"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: my-operator
+  namespace: default
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: my-operator
+subjects:
+- kind: ServiceAccount
+  name: my-operator
+  namespace: default
